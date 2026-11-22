@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 /**
  * Records the course and blog cards and list sections show. The builder loads them from the database and hands them to
  * the renderer, so a layout only stores ids and list settings. All text here is plain text.
@@ -44,6 +46,11 @@ export type BlogSource = {
 export type CardSources = {
   courses: CourseSource[];
   blogs: BlogSource[];
+  /**
+   * Draws the booking form for a booking type. The public site supplies its interactive form here. Without it (the
+   * builder's preview) a placeholder is shown instead.
+   */
+  booking?: (type: "road-test" | "car-lesson") => ReactNode;
   /**
    * The public site's address with no trailing slash, for example "https://www.example.com". Card links are built from
    * it, so they work from the builder's preview too. Empty means links are relative to the page that shows them.

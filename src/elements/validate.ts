@@ -20,6 +20,7 @@ import {
   type Column,
 } from "./model";
 import { COURSE_FILTERS, DEFAULT_LIST, LIST_MAX, LIST_SOURCES, PER_ROW, sortsFor, type ListSettings, type PerRow } from "./list";
+import { sanitizeRichText } from "../render/sanitize";
 
 export type LayoutResult = { ok: true; value: Layout } | { ok: false; error: string };
 
@@ -98,6 +99,11 @@ function checkWidget(raw: unknown, where: string): Widget {
       const src = typeof value === "string" ? value.trim() : "";
       if (src && (src.length > LIMITS.image || !IMAGE.test(src))) fail(`${name} image must be an uploaded image or a site path such as /assets/….`);
       settings[field.key] = src;
+    } else if (field.kind === "rich") {
+      // Formatted text is cleaned here, so only safe HTML is ever stored or drawn.
+      const html = typeof value === "string" ? sanitizeRichText(value).trim() : "";
+      if (html.length > LIMITS.rich) fail(`${name} "${field.label}" is too long.`);
+      settings[field.key] = html;
     } else if (field.kind === "record") {
       // An id from the database. Anything that is not a whole number above zero means "none chosen".
       const id = typeof value === "number" ? value : Number(value);

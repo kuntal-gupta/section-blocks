@@ -18,6 +18,10 @@ export const WIDGET_TYPES = [
   "testimonial",
   "stats",
   "faq",
+  "rich-text",
+  "booking-form",
+  "checklist",
+  "price-table",
   "course-card",
   "blog-card",
   "review-card",
@@ -100,6 +104,7 @@ export type Layout = Section[];
 export const LIMITS = {
   sections: 40,
   innerSectionsPerColumn: 10,
+  rich: 40000,
   columnsPerSection: 4,
   widgetsPerColumn: 40,
   text: 5000,
@@ -117,7 +122,9 @@ export type SettingField =
   | { key: string; kind: "url"; label: string; required?: boolean }
   | { key: string; kind: "choice"; label: string; options: readonly string[] }
   /** A course or blog picked from the database. The value is its id, 0 for none. */
-  | { key: string; kind: "record"; label: string; source: "courses" | "blogs" };
+  | { key: string; kind: "record"; label: string; source: "courses" | "blogs" }
+  /** Formatted text (bold, colours, links). Stored as sanitised HTML. */
+  | { key: string; kind: "rich"; label: string };
 
 export type WidgetCategory = "basic" | "media" | "content";
 export const CATEGORIES: { id: WidgetCategory; label: string }[] = [
@@ -259,6 +266,44 @@ export const WIDGET_SPECS: Record<WidgetType, WidgetSpec> = {
     ],
     style: { color: true, background: true },
     defaults: { question: "Your question?", answer: "Your answer." },
+  },
+  "booking-form": {
+    label: "Booking form",
+    category: "content",
+    icon: "📅",
+    settings: [{ key: "type", kind: "choice", label: "Booking type", options: ["road-test", "car-lesson"] }],
+    style: {},
+    defaults: { type: "road-test" },
+  },
+  checklist: {
+    label: "Checklist",
+    category: "content",
+    icon: "✔",
+    settings: [
+      { key: "title", kind: "text", label: "Heading", max: 120 },
+      { key: "items", kind: "text", label: "One item per line", multiline: true, max: 3000 },
+    ],
+    style: { color: true, background: true },
+    defaults: { title: "Must bring the following documents", items: "Item one\nItem two" },
+  },
+  "price-table": {
+    label: "Price table",
+    category: "content",
+    icon: "$",
+    settings: [
+      { key: "rows", kind: "text", label: "One row per line: label | price | description", multiline: true, max: 3000 },
+      { key: "note", kind: "text", label: "Note under the table", multiline: true, max: 1000 },
+    ],
+    style: { color: true, background: true },
+    defaults: { rows: "1 hour lesson | $60.00 | Description", note: "" },
+  },
+  "rich-text": {
+    label: "Rich text",
+    category: "basic",
+    icon: "Aa",
+    settings: [{ key: "html", kind: "rich", label: "Text (formatting kept)" }],
+    style: { align: true, color: true, background: true },
+    defaults: { html: "<p>Write your text here.</p>" },
   },
   "course-card": {
     label: "Course card",
@@ -450,6 +495,33 @@ export const SECTION_PRESETS: SectionPreset[] = [
     label: "Blog cards",
     description: "A list of your latest blog posts",
     build: () => ({ ...section([column(100, [])]), list: { source: "blogs", ...DEFAULT_LIST.blogs } }),
+  },
+  {
+    id: "road-test-booking",
+    label: "Road test booking",
+    description: "Documents on the left, a booking form on the right",
+    build: () =>
+      section([
+        column(50, [
+          widget("heading", { text: "Schedule Your Road Test", level: "h2" }),
+          widget("rich-text", { html: "<p>Select a convenient date and time for your road test appointment.</p>" }),
+          widget("checklist", { title: "Adult & young road test", items: "Valid permit\nProof of insurance" }),
+        ]),
+        column(50, [widget("booking-form", { type: "road-test" })]),
+      ]),
+  },
+  {
+    id: "car-lesson-booking",
+    label: "Car lesson booking",
+    description: "Prices on the left, a booking form on the right",
+    build: () =>
+      section([
+        column(50, [
+          widget("heading", { text: "Car Lesson & Road Test Pricing", level: "h2" }),
+          widget("price-table", { rows: "1 hour car lesson | $60.00 | One hour behind the wheel", note: "" }),
+        ]),
+        column(50, [widget("booking-form", { type: "car-lesson" })]),
+      ]),
   },
   {
     id: "contact",

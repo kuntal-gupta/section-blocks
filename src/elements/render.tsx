@@ -15,6 +15,7 @@ import type {
 } from "./model";
 import { EMPTY_SOURCES, type BlogSource, type CardSources, type CourseSource } from "./sources";
 import { pickRecords } from "./list";
+import { RichHtml } from "../render/rich-html";
 import type { ListSettings } from "./list";
 
 /**
@@ -323,6 +324,64 @@ function renderWidget(widget: Widget, sources: CardSources): ReactNode {
             {str(s.role) && <span className="font-normal text-slate-500"> · {str(s.role)}</span>}
           </figcaption>
         </figure>
+      );
+      break;
+    }
+    case "rich-text":
+      content = <RichHtml html={str(s.html)} />;
+      break;
+    case "booking-form": {
+      const type = str(s.type) === "car-lesson" ? "car-lesson" : "road-test";
+      content = sources.booking ? (
+        sources.booking(type)
+      ) : (
+        <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+          Booking form: {type === "road-test" ? "road test" : "car lesson"} (live on the public site)
+        </div>
+      );
+      break;
+    }
+    case "checklist": {
+      const items = str(s.items).split("\n").map((line) => line.trim()).filter(Boolean);
+      content = (
+        <div className="overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm" style={{ color: style.color }}>
+          <div className="px-5 py-3 text-white" style={{ background: "#010066" }}>
+            <h3 className="font-semibold">{str(s.title)}</h3>
+          </div>
+          <ul className="grid gap-3 p-5">
+            {items.map((item, i) => (
+              <li key={i} className="flex items-start gap-3">
+                <span aria-hidden="true" className="mt-0.5 font-bold text-green-600">✔</span>
+                <span className="text-gray-700">{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+      break;
+    }
+    case "price-table": {
+      const rows = str(s.rows)
+        .split("\n")
+        .map((line) => line.split("|").map((part) => part.trim()))
+        .filter((cells) => cells[0]);
+      content = (
+        <div style={{ color: style.color }}>
+          <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
+            <table className="w-full text-left text-sm">
+              <tbody>
+                {rows.map((cells, i) => (
+                  <tr key={i} className="border-b border-gray-100 last:border-0">
+                    <td className="px-4 py-3 font-semibold text-gray-900">{cells[0]}</td>
+                    <td className="px-4 py-3 font-bold text-gray-900">{cells[1] ?? ""}</td>
+                    <td className="px-4 py-3 text-gray-600">{cells[2] ?? ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {str(s.note) && <p className="mt-3 text-sm text-gray-600">{str(s.note)}</p>}
+        </div>
       );
       break;
     }
