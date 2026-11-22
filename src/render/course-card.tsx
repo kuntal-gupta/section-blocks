@@ -21,8 +21,8 @@ export function CourseCard({ course }: { course: Course }) {
           {price.original && <p className="text-sm text-slate-400 line-through">{price.original}</p>}
           <p className="text-2xl font-bold text-slate-900">{price.current}</p>
         </div>
-        <a href={`/courses/${course.slug}`} className={btn}>
-          View course
+        <a href={`/courses/${course.slug}/purchase`} className={btn}>
+          Enroll now
         </a>
       </div>
     </article>

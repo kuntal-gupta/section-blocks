@@ -33,10 +33,55 @@ export type Align = (typeof ALIGN)[number];
 export const SIZES = ["sm", "md", "lg", "xl"] as const;
 export type Size = (typeof SIZES)[number];
 
-export type WidgetStyle = { align?: Align; color?: string; background?: string; size?: Size };
-export type SectionStyle = { background?: string; paddingY?: Spacing; gap?: Spacing; headingGap?: Spacing };
+/** How a button is drawn: filled with its colour, or an outline. */
+export const BUTTON_VARIANTS = ["solid", "outline"] as const;
+export type ButtonVariant = (typeof BUTTON_VARIANTS)[number];
+
+/** Corner shape of a button. */
+export const BUTTON_RADIUS = ["square", "rounded", "pill"] as const;
+export type ButtonRadius = (typeof BUTTON_RADIUS)[number];
+
+/** Which way a gradient runs. */
+export const GRADIENT_DIRECTIONS = ["down", "right", "diagonal", "diagonal-up"] as const;
+export type GradientDirection = (typeof GRADIENT_DIRECTIONS)[number];
+
+/** A two-colour background. */
+export type Gradient = { from: string; to: string; direction: GradientDirection };
+
+export type WidgetStyle = {
+  align?: Align;
+  color?: string;
+  background?: string;
+  size?: Size;
+  /** Buttons only. */
+  variant?: ButtonVariant;
+  radius?: ButtonRadius;
+};
+export type SectionStyle = {
+  background?: string;
+  /** Takes the place of `background` when set. */
+  gradient?: Gradient;
+  paddingY?: Spacing;
+  gap?: Spacing;
+  headingGap?: Spacing;
+};
 export type Widget = { id: string; type: WidgetType; settings: Record<string, string | number | boolean>; style: WidgetStyle };
-export type Column = { id: string; width: number; widgets: Widget[] };
+/**
+ * A column holds widgets, and may also hold inner sections (each with its own columns). Inner sections cannot hold
+ * inner sections of their own: nesting stops one level down.
+ */
+export type Column = { id: string; width: number; widgets: Widget[]; innerSections?: Section[] };
+
+/** A button shown centred below a section's content. Left out when it has no label. */
+export type SectionButton = {
+  label: string;
+  href: string;
+  variant: ButtonVariant;
+  radius: ButtonRadius;
+  background?: string;
+  color?: string;
+};
+
 /** `title` and `subtitle` are an optional heading and subheading shown above the columns. */
 export type Section = {
   id: string;
@@ -46,12 +91,15 @@ export type Section = {
   subtitle?: string;
   /** A list section shows courses or blog posts from the database instead of its columns. */
   list?: ListSettings;
+  /** A centred button below the content. */
+  button?: SectionButton;
 };
 export type Layout = Section[];
 
 /** Limits enforced on save. */
 export const LIMITS = {
   sections: 40,
+  innerSectionsPerColumn: 10,
   columnsPerSection: 4,
   widgetsPerColumn: 40,
   text: 5000,
@@ -85,7 +133,7 @@ export type WidgetSpec = {
   icon: string;
   settings: SettingField[];
   /** Which style options the Style tab offers for this widget. */
-  style: { align?: boolean; color?: boolean; background?: boolean; size?: boolean };
+  style: { align?: boolean; color?: boolean; background?: boolean; size?: boolean; variant?: boolean; radius?: boolean };
   defaults: Record<string, string | number | boolean>;
 };
 
@@ -128,7 +176,7 @@ export const WIDGET_SPECS: Record<WidgetType, WidgetSpec> = {
       { key: "label", kind: "text", label: "Button text", required: true, max: LIMITS.label },
       { key: "href", kind: "link", label: "Link", required: true },
     ],
-    style: { align: true, color: true, background: true },
+    style: { align: true, color: true, background: true, size: true, variant: true, radius: true },
     defaults: { label: "Click here", href: "/" },
   },
   spacer: {

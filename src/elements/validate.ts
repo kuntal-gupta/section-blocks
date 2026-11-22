@@ -2,7 +2,23 @@
  * Checks a layout before it is saved (and before it is shown). Unknown fields are dropped, every value is checked for
  * type and length, and links and images must be of an allowed kind, so the public site can draw the layout as it is.
  */
-import { ALIGN, LIMITS, SIZES, SPACING, WIDGET_SPECS, WIDGET_TYPES, type Layout, type Section, type Widget, type Column } from "./model";
+import {
+  ALIGN,
+  BUTTON_RADIUS,
+  BUTTON_VARIANTS,
+  GRADIENT_DIRECTIONS,
+  LIMITS,
+  SIZES,
+  SPACING,
+  WIDGET_SPECS,
+  WIDGET_TYPES,
+  type Gradient,
+  type Layout,
+  type Section,
+  type SectionButton,
+  type Widget,
+  type Column,
+} from "./model";
 import { COURSE_FILTERS, DEFAULT_LIST, LIST_MAX, LIST_SOURCES, PER_ROW, sortsFor, type ListSettings, type PerRow } from "./list";
 
 export type LayoutResult = { ok: true; value: Layout } | { ok: false; error: string };
@@ -32,13 +48,15 @@ function checkColor(value: unknown, where: string): string | undefined {
   return value as string;
 }
 
-function checkStyle(value: unknown, where: string, allowed: { align?: boolean; color?: boolean; background?: boolean; size?: boolean; paddingY?: boolean; gap?: boolean; headingGap?: boolean }) {
+function checkStyle(value: unknown, where: string, allowed: { align?: boolean; color?: boolean; background?: boolean; size?: boolean; variant?: boolean; radius?: boolean; paddingY?: boolean; gap?: boolean; headingGap?: boolean }) {
   const source = isObj(value) ? value : {};
   const out: Obj = {};
   if (allowed.align) out.align = pick(source.align, ALIGN);
   if (allowed.color) out.color = checkColor(source.color, `${where} text colour`);
   if (allowed.background) out.background = checkColor(source.background, `${where} background`);
   if (allowed.size) out.size = pick(source.size, SIZES);
+  if (allowed.variant) out.variant = pick(source.variant, BUTTON_VARIANTS);
+  if (allowed.radius) out.radius = pick(source.radius, BUTTON_RADIUS);
   if (allowed.paddingY) out.paddingY = pick(source.paddingY, SPACING) ?? "md";
   if (allowed.gap) out.gap = pick(source.gap, SPACING) ?? "md";
   if (allowed.headingGap) out.headingGap = pick(source.headingGap, SPACING) ?? "lg";
@@ -93,13 +111,25 @@ function checkWidget(raw: unknown, where: string): Widget {
   return { id, type, settings, style };
 }
 
-function checkColumn(raw: unknown, where: string): Column {
+/**
+ * A column. `nestable` is false inside an inner section: those can hold widgets but not inner sections of their own.
+ */
+function checkColumn(raw: unknown, where: string, nestable: boolean): Column {
   if (!isObj(raw)) fail(`${where} is not valid.`);
   const id = checkId(raw.id, where);
   const width = typeof raw.width === "number" && raw.width >= 5 && raw.width <= 100 ? Math.round(raw.width * 100) / 100 : 100;
   const widgets = Array.isArray(raw.widgets) ? raw.widgets : [];
   if (widgets.length > LIMITS.widgetsPerColumn) fail(`${where} can hold at most ${LIMITS.widgetsPerColumn} widgets.`);
-  return { id, width, widgets: widgets.map((w, i) => checkWidget(w, `${where} widget ${i + 1}`)) };
+  const inner = Array.isArray(raw.innerSections) ? raw.innerSections : [];
+  if (inner.length > 0 && !nestable) fail(`${where} cannot hold a section inside an inner section. Nesting goes one level deep.`);
+  if (inner.length > LIMITS.innerSectionsPerColumn) fail(`${where} can hold at most ${LIMITS.innerSectionsPerColumn} inner sections.`);
+  const innerSections = inner.map((s, i) => checkSection(s, `${where} inner section ${i + 1}`, false));
+  return {
+    id,
+    width,
+    widgets: widgets.map((w, i) => checkWidget(w, `${where} widget ${i + 1}`)),
+    ...(innerSections.length > 0 ? { innerSections } : {}),
+  };
 }
 
 /** A list section's settings. Anything unknown falls back to the list's defaults; the source itself must be known. */
@@ -115,7 +145,7 @@ function checkList(value: unknown, where: string): ListSettings | undefined {
   return { source, count, filter, sort, perRow };
 }
 
-function checkSection(raw: unknown, where: string): Section {
+function checkSection(raw: unknown, where: string, nestable: boolean): Section {
   if (!isObj(raw)) fail(`${where} is not valid.`);
   const id = checkId(raw.id, where);
   const columns = Array.isArray(raw.columns) ? raw.columns : [];
@@ -124,13 +154,47 @@ function checkSection(raw: unknown, where: string): Section {
   const title = checkText(raw.title, `${where} heading`, LIMITS.line, false);
   const subtitle = checkText(raw.subtitle, `${where} subheading`, 400, false);
   const list = checkList(raw.list, where);
+  const gradient = checkGradient(isObj(raw.style) ? raw.style.gradient : undefined, where);
+  const button = checkSectionButton(raw.button, where);
   return {
     id,
-    style: style as Section["style"],
-    columns: columns.map((c, i) => checkColumn(c, `${where} column ${i + 1}`)),
+    style: { ...(style as Section["style"]), ...(gradient ? { gradient } : {}) },
+    columns: columns.map((c, i) => checkColumn(c, `${where} column ${i + 1}`, nestable)),
     title,
     subtitle,
     ...(list ? { list } : {}),
+    ...(button ? { button } : {}),
+  };
+}
+
+/** A two-colour background. Incomplete gradients (one colour missing) are dropped. */
+function checkGradient(value: unknown, where: string): Gradient | undefined {
+  if (!isObj(value)) return undefined;
+  const from = checkColor(value.from, `${where} gradient start colour`);
+  const to = checkColor(value.to, `${where} gradient end colour`);
+  if (!from || !to) return undefined;
+  return { from, to, direction: pick(value.direction, GRADIENT_DIRECTIONS) ?? "down" };
+}
+
+/** The button under a section's content. No label means no button. */
+function checkSectionButton(value: unknown, where: string): SectionButton | undefined {
+  if (!isObj(value)) return undefined;
+  const label = typeof value.label === "string" ? value.label.trim() : "";
+  if (!label) return undefined;
+  if (label.length > LIMITS.label) fail(`${where} button text is longer than ${LIMITS.label} characters.`);
+  const href = typeof value.href === "string" ? value.href.trim() : "";
+  if (!href || href.length > LIMITS.link || !LINK.test(href)) {
+    fail(`${where} button link must start with /, #, https://, mailto: or tel:.`);
+  }
+  const background = checkColor(value.background, `${where} button colour`);
+  const color = checkColor(value.color, `${where} button text colour`);
+  return {
+    label,
+    href,
+    variant: pick(value.variant, BUTTON_VARIANTS) ?? "solid",
+    radius: pick(value.radius, BUTTON_RADIUS) ?? "rounded",
+    ...(background ? { background } : {}),
+    ...(color ? { color } : {}),
   };
 }
 
@@ -139,7 +203,7 @@ export function validateLayout(value: unknown): LayoutResult {
   try {
     if (!Array.isArray(value)) fail("The layout must be a list of sections.");
     if (value.length > LIMITS.sections) fail(`Use at most ${LIMITS.sections} sections on a page.`);
-    return { ok: true, value: value.map((s, i) => checkSection(s, `Section ${i + 1}`)) };
+    return { ok: true, value: value.map((s, i) => checkSection(s, `Section ${i + 1}`, true)) };
   } catch (error) {
     if (error instanceof Fail) return { ok: false, error: error.message };
     throw error;

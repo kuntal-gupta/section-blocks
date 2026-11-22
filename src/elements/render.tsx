@@ -1,5 +1,18 @@
 import { Fragment, type CSSProperties, type ReactNode } from "react";
-import type { Column, Layout, Section, SectionStyle, Size, Spacing, Widget, WidgetStyle } from "./model";
+import type {
+  ButtonRadius,
+  ButtonVariant,
+  Column,
+  GradientDirection,
+  Layout,
+  Section,
+  SectionButton,
+  SectionStyle,
+  Size,
+  Spacing,
+  Widget,
+  WidgetStyle,
+} from "./model";
 import { EMPTY_SOURCES, type BlogSource, type CardSources, type CourseSource } from "./sources";
 import { pickRecords } from "./list";
 import type { ListSettings } from "./list";
@@ -132,7 +145,7 @@ function CourseCard({ course, style, siteUrl }: { course: CourseSource; style: W
           {course.duration && <p className="pb-1 text-sm font-medium text-slate-500">{course.duration}</p>}
         </div>
         <a
-          href={`${siteUrl}/courses/${encodeURIComponent(course.slug)}`}
+          href={`${siteUrl}/courses/${encodeURIComponent(course.slug)}/purchase`}
           className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl px-6 py-4 text-base font-bold tracking-wide no-underline"
           style={{ background: BRAND.accent, color: BRAND.ink, boxShadow: "0 8px 20px -8px rgba(251, 191, 36, 0.8)" }}
         >
@@ -217,14 +230,15 @@ function renderWidget(widget: Widget, sources: CardSources): ReactNode {
     case "button": {
       const size = style.size ? TEXT_SIZE[style.size] : "text-sm";
       content = (
-        <a
+        <ButtonLink
           href={str(s.href) || "#"}
-         
-          className={`inline-flex items-center rounded-lg px-5 py-3 font-semibold ${size}`}
-          style={{ background: style.background ?? "#0f172a", color: style.color ?? "#ffffff" }}
-        >
-          {str(s.label)}
-        </a>
+          label={str(s.label)}
+          variant={style.variant}
+          radius={style.radius}
+          background={style.background}
+          color={style.color}
+          size={size}
+        />
       );
       break;
     }
@@ -336,13 +350,66 @@ function renderColumn(column: Column, sources: CardSources): ReactNode {
       {column.widgets.map((w) => (
         <Fragment key={w.id}>{renderWidget(w, sources)}</Fragment>
       ))}
+      {column.innerSections?.map((s) => renderSection(s, sources, true))}
     </div>
+  );
+}
+
+const GRADIENT_DIRECTION: Record<GradientDirection, string> = {
+  down: "to bottom",
+  right: "to right",
+  diagonal: "to bottom right",
+  "diagonal-up": "to top right",
+};
+
+const BUTTON_RADIUS_CLASS: Record<ButtonRadius, string> = { square: "rounded-none", rounded: "rounded-lg", pill: "rounded-full" };
+
+/**
+ * A button's colours. Solid is filled with the button colour; outline has a border in that colour and no fill. The
+ * text colour defaults to white on a solid button and to the button colour on an outline.
+ */
+function buttonLook(variant: ButtonVariant | undefined, background: string | undefined, color: string | undefined): CSSProperties {
+  const colour = background ?? "#0f172a";
+  if (variant === "outline") {
+    return { background: "transparent", color: color ?? colour, border: `2px solid ${colour}` };
+  }
+  return { background: colour, color: color ?? "#ffffff", border: "2px solid transparent" };
+}
+
+/** A link styled as a button: used by the button widget and by a section's button. */
+function ButtonLink({
+  href,
+  label,
+  variant,
+  radius,
+  background,
+  color,
+  size = "text-base",
+}: {
+  href: string;
+  label: string;
+  variant?: ButtonVariant;
+  radius?: ButtonRadius;
+  background?: string;
+  color?: string;
+  size?: string;
+}) {
+  return (
+    <a
+      href={href}
+      className={`inline-flex items-center justify-center px-6 py-3 font-semibold no-underline ${BUTTON_RADIUS_CLASS[radius ?? "rounded"]} ${size}`}
+      style={buttonLook(variant, background, color)}
+    >
+      {label}
+    </a>
   );
 }
 
 function sectionStyle(style: SectionStyle): CSSProperties {
   return {
-    background: style.background,
+    background: style.gradient
+      ? `linear-gradient(${GRADIENT_DIRECTION[style.gradient.direction]}, ${style.gradient.from}, ${style.gradient.to})`
+      : style.background,
     paddingTop: PADDING[style.paddingY ?? "md"],
     paddingBottom: PADDING[style.paddingY ?? "md"],
   };
@@ -354,24 +421,46 @@ const HEADING_GAP: Record<Spacing, string> = { none: "0px", sm: "1rem", md: "2re
 function SectionHeading({ title, subtitle, gap }: { title?: string; subtitle?: string; gap: Spacing }) {
   if (!title && !subtitle) return null;
   return (
-    <div className="mx-auto max-w-3xl px-4 text-center sm:px-6" style={{ marginBottom: HEADING_GAP[gap] }}>
+    <div className="w-full px-4 text-center sm:px-6" style={{ marginBottom: HEADING_GAP[gap] }}>
       {title && <h2 className="text-3xl font-bold leading-tight sm:text-4xl">{title}</h2>}
-      {subtitle && <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-slate-600 sm:text-xl">{subtitle}</p>}
+      {subtitle && <p className="mt-5 text-lg leading-relaxed text-slate-600 sm:text-xl">{subtitle}</p>}
     </div>
   );
 }
 
-function renderSection(section: Section, sources: CardSources): ReactNode {
+/** The button centred below a section's content. */
+function SectionButtonView({ button }: { button: SectionButton }) {
+  return (
+    <div className="mt-10 flex justify-center px-4 sm:px-6">
+      <ButtonLink
+        href={button.href}
+        label={button.label}
+        variant={button.variant}
+        radius={button.radius}
+        background={button.background}
+        color={button.color}
+        size="text-base"
+      />
+    </div>
+  );
+}
+
+/**
+ * A section. A nested section sits inside its column, so it takes the column's width and skips the page margins.
+ */
+function renderSection(section: Section, sources: CardSources, nested = false): ReactNode {
+  const frame = nested ? "w-full" : "mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8";
   return (
     <section key={section.id} data-key={section.id} data-section="" style={sectionStyle(section.style)}>
       <SectionHeading title={section.title} subtitle={section.subtitle} gap={section.style.headingGap ?? "lg"} />
       {section.list ? (
         <ListGrid list={section.list} sources={sources} />
       ) : (
-        <div className="alo-row mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8" style={{ gap: GAP[section.style.gap ?? "md"] }}>
+        <div className={`alo-row ${frame}`} style={{ gap: GAP[section.style.gap ?? "md"] }}>
           {section.columns.map((c) => renderColumn(c, sources))}
         </div>
       )}
+      {section.button?.label && <SectionButtonView button={section.button} />}
     </section>
   );
 }
