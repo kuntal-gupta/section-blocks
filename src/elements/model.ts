@@ -37,9 +37,22 @@ export type Align = (typeof ALIGN)[number];
 export const SIZES = ["sm", "md", "lg", "xl"] as const;
 export type Size = (typeof SIZES)[number];
 
-/** How a button is drawn: filled with its colour, or an outline. */
-export const BUTTON_VARIANTS = ["solid", "outline"] as const;
+/** How a button is drawn: filled with its colour, an outline, or plain underlined text (a link). */
+export const BUTTON_VARIANTS = ["solid", "outline", "link"] as const;
 export type ButtonVariant = (typeof BUTTON_VARIANTS)[number];
+export const BUTTON_VARIANT_LABEL: Record<ButtonVariant, string> = { solid: "Filled", outline: "Outline", link: "Link (text only)" };
+
+/** Where a column's content sits from top to bottom, when the column is taller than its content. */
+export const VERTICAL_ALIGN = ["top", "center", "bottom"] as const;
+export type VerticalAlign = (typeof VERTICAL_ALIGN)[number];
+
+/** Screen sizes: phone below 768px, tablet 768 to 1023px, desktop 1024px and up. */
+export const DEVICES = ["phone", "tablet", "desktop"] as const;
+export type Device = (typeof DEVICES)[number];
+
+/** The screen sizes on which a section's columns go one under another: phones, phones and tablets, or never. */
+export const STACK_ON = ["phone", "tablet", "never"] as const;
+export type StackOn = (typeof STACK_ON)[number];
 
 /** Corner shape of a button. */
 export const BUTTON_RADIUS = ["square", "rounded", "pill"] as const;
@@ -68,13 +81,28 @@ export type SectionStyle = {
   paddingY?: Spacing;
   gap?: Spacing;
   headingGap?: Spacing;
+  /** When the columns stack. Phones only when left out. */
+  stackOn?: StackOn;
+  /** Stacked columns show last first, e.g. an image on the right goes above its text on phones. */
+  reverseStacked?: boolean;
 };
 export type Widget = { id: string; type: WidgetType; settings: Record<string, string | number | boolean>; style: WidgetStyle };
 /**
  * A column holds widgets, and may also hold inner sections (each with its own columns). Inner sections cannot hold
  * inner sections of their own: nesting stops one level down.
  */
-export type Column = { id: string; width: number; widgets: Widget[]; innerSections?: Section[] };
+export type Column = {
+  id: string;
+  width: number;
+  widgets: Widget[];
+  innerSections?: Section[];
+  /** Horizontal alignment of everything in the column. A widget's own alignment wins. */
+  align?: Align;
+  /** Vertical position of the content when the column is taller than it (top when left out). */
+  verticalAlign?: VerticalAlign;
+  /** Screen sizes on which the column is hidden. */
+  hideOn?: Device[];
+};
 
 /** A button shown centred below a section's content. Left out when it has no label. */
 export type SectionButton = {

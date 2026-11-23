@@ -10,6 +10,7 @@ import type {
   SectionStyle,
   Size,
   Spacing,
+  VerticalAlign,
   Widget,
   WidgetStyle,
 } from "./model";
@@ -19,15 +20,26 @@ import { RichHtml } from "../render/rich-html";
 import type { ListSettings } from "./list";
 
 /**
- * Column widths on phones stack to full width. The column width comes from --w, set on each column.
+ * Columns sit side by side, each at its width (--w). A row stacks them one under another, full width, on phones
+ * (below 768px) by default; data-stack="tablet" stacks below 1024px too and "never" keeps them side by side.
+ * data-reverse shows stacked columns last first. A column with data-hide="phone tablet" is hidden on those screens.
  * List sections are a grid: one card per row on phones, up to the chosen number per row on wider screens.
  */
+const STACKED = (row: string) => `
+  ${row} { flex-direction: column; }
+  ${row}[data-reverse] { flex-direction: column-reverse; }
+  ${row} > .alo-col { flex: 0 0 auto; width: 100%; }`;
 const CSS = `
 .alo-row { display: flex; flex-wrap: nowrap; }
 .alo-col { flex: 0 1 var(--w); min-width: 0; }
-@media (max-width: 767px) {
-  .alo-row { flex-wrap: wrap; }
-  .alo-col { flex: 0 0 100%; }
+@media (max-width: 767px) {${STACKED(".alo-row:not([data-stack=never])")}
+  .alo-col[data-hide~=phone] { display: none; }
+}
+@media (min-width: 768px) and (max-width: 1023px) {${STACKED(".alo-row[data-stack=tablet]")}
+  .alo-col[data-hide~=tablet] { display: none; }
+}
+@media (min-width: 1024px) {
+  .alo-col[data-hide~=desktop] { display: none; }
 }
 .alo-list { display: grid; gap: 1.5rem; grid-template-columns: 1fr; }
 @media (min-width: 640px) { .alo-list { grid-template-columns: repeat(min(var(--cols, 3), 2), minmax(0, 1fr)); } }
@@ -397,14 +409,18 @@ function renderWidget(widget: Widget, sources: CardSources): ReactNode {
   );
 }
 
+const JUSTIFY: Record<VerticalAlign, CSSProperties["justifyContent"]> = { top: "flex-start", center: "center", bottom: "flex-end" };
+
 function renderColumn(column: Column, sources: CardSources): ReactNode {
   return (
     <div
       key={column.id}
       data-key={column.id}
       data-column=""
+      data-hide={column.hideOn?.length ? column.hideOn.join(" ") : undefined}
       className="alo-col flex flex-col gap-4"
-      style={{ "--w": `${column.width}%` } as CSSProperties}
+      // Widgets inherit the column's alignment unless they set their own.
+      style={{ "--w": `${column.width}%`, justifyContent: JUSTIFY[column.verticalAlign ?? "top"], textAlign: column.align } as CSSProperties}
     >
       {column.widgets.map((w) => (
         <Fragment key={w.id}>{renderWidget(w, sources)}</Fragment>
@@ -429,6 +445,10 @@ const BUTTON_RADIUS_CLASS: Record<ButtonRadius, string> = { square: "rounded-non
  */
 function buttonLook(variant: ButtonVariant | undefined, background: string | undefined, color: string | undefined): CSSProperties {
   const colour = background ?? "#0f172a";
+  if (variant === "link") {
+    // Plain underlined text in the button colour, with no box around it.
+    return { background: "transparent", color: color ?? background ?? "#0f172a", border: 0, padding: 0, textDecoration: "underline", textUnderlineOffset: "4px" };
+  }
   if (variant === "outline") {
     return { background: "transparent", color: color ?? colour, border: `2px solid ${colour}` };
   }
@@ -515,7 +535,12 @@ function renderSection(section: Section, sources: CardSources, nested = false): 
       {section.list ? (
         <ListGrid list={section.list} sources={sources} />
       ) : (
-        <div className={`alo-row ${frame}`} style={{ gap: GAP[section.style.gap ?? "md"] }}>
+        <div
+          className={`alo-row ${frame}`}
+          data-stack={section.style.stackOn && section.style.stackOn !== "phone" ? section.style.stackOn : undefined}
+          data-reverse={section.style.reverseStacked ? "" : undefined}
+          style={{ gap: GAP[section.style.gap ?? "md"] }}
+        >
           {section.columns.map((c) => renderColumn(c, sources))}
         </div>
       )}

@@ -6,6 +6,9 @@ import {
   ALIGN,
   BUTTON_RADIUS,
   BUTTON_VARIANTS,
+  DEVICES,
+  STACK_ON,
+  VERTICAL_ALIGN,
   GRADIENT_DIRECTIONS,
   LIMITS,
   SIZES,
@@ -130,11 +133,18 @@ function checkColumn(raw: unknown, where: string, nestable: boolean): Column {
   if (inner.length > 0 && !nestable) fail(`${where} cannot hold a section inside an inner section. Nesting goes one level deep.`);
   if (inner.length > LIMITS.innerSectionsPerColumn) fail(`${where} can hold at most ${LIMITS.innerSectionsPerColumn} inner sections.`);
   const innerSections = inner.map((s, i) => checkSection(s, `${where} inner section ${i + 1}`, false));
+  const align = pick(raw.align, ALIGN);
+  const verticalAlign = pick(raw.verticalAlign, VERTICAL_ALIGN);
+  // Known screen sizes only, each once, in a fixed order.
+  const hidden = Array.isArray(raw.hideOn) ? DEVICES.filter((d) => (raw.hideOn as unknown[]).includes(d)) : [];
   return {
     id,
     width,
     widgets: widgets.map((w, i) => checkWidget(w, `${where} widget ${i + 1}`)),
     ...(innerSections.length > 0 ? { innerSections } : {}),
+    ...(align ? { align } : {}),
+    ...(verticalAlign && verticalAlign !== "top" ? { verticalAlign } : {}),
+    ...(hidden.length > 0 ? { hideOn: hidden } : {}),
   };
 }
 
@@ -162,9 +172,15 @@ function checkSection(raw: unknown, where: string, nestable: boolean): Section {
   const list = checkList(raw.list, where);
   const gradient = checkGradient(isObj(raw.style) ? raw.style.gradient : undefined, where);
   const button = checkSectionButton(raw.button, where);
+  const rawStyle = isObj(raw.style) ? raw.style : {};
+  const stackOn = pick(rawStyle.stackOn, STACK_ON);
+  const responsive = {
+    ...(stackOn && stackOn !== "phone" ? { stackOn } : {}),
+    ...(rawStyle.reverseStacked === true ? { reverseStacked: true } : {}),
+  };
   return {
     id,
-    style: { ...(style as Section["style"]), ...(gradient ? { gradient } : {}) },
+    style: { ...(style as Section["style"]), ...(gradient ? { gradient } : {}), ...responsive },
     columns: columns.map((c, i) => checkColumn(c, `${where} column ${i + 1}`, nestable)),
     title,
     subtitle,
