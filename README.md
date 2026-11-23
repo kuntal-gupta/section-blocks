@@ -7,4 +7,4 @@ Page block definitions shared by the Alo Driving School admin (validation and pa
 
 Change a block here, in one place. Both apps read this package; neither keeps its own copy of the field list.
 
-The apps link to this folder with `file:../alo-blocks`, so keep the two projects side by side.
+The apps install this package from GitHub (`git+ssh://git@github.com/kuntal-gupta/section-blocks.git#main`). After pushing a change here, run `npm update @section/blocks` in each app to pick it up.

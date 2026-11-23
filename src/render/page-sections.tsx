@@ -640,7 +640,7 @@ function renderBlockContent(block: unknown, dark: boolean, data: RenderData): Re
         </>
       );
     default:
-      if (SPEC_TYPES.has(type)) console.warn(`CMS block "${type}" is defined in @alo/blocks but the front does not render it yet.`);
+      if (SPEC_TYPES.has(type)) console.warn(`CMS block "${type}" is defined in @section/blocks but the front does not render it yet.`);
       return null;
   }
 }

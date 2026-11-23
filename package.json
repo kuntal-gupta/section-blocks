@@ -1,5 +1,5 @@
 {
-  "name": "@alo/blocks",
+  "name": "@section/blocks",
   "version": "0.2.0",
   "private": true,
   "description": "Page block definitions and the shared page renderer, used by the admin (validation, page builder preview) and the public site (rendering).",
