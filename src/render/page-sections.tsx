@@ -141,6 +141,29 @@ const STATS_COLS: Record<string, string> = { "2-col": "md:grid-cols-2", "3-col":
 const VIDEO_ALIGN: Record<string, string> = { left: "justify-start", center: "justify-center", right: "justify-end" };
 const VIDEO_WIDTH: Record<string, string> = { full: "", half: "md:w-1/2", third: "md:w-1/3" };
 
+/** Named icons the old site's card grid understood. */
+const GRID_ICONS: Record<string, string> = {
+  learning: "📚", safety: "🛡️", knowledge: "🧠", clock: "⏰", awareness: "👁️", certificate: "📜",
+  car: "🚗", road: "🛣️", check: "✅", star: "⭐", heart: "❤️", speed: "⚡",
+};
+/** A value that is meant as an image: a full URL, a site path, or a file name with an image extension. */
+const looksLikeImage = (v: string) => /^(https?:)?\/|\.(png|jpe?g|webp|gif|svg|avif)(\?.*)?$/i.test(v);
+
+/**
+ * A card grid's icon. Old pages store an image address, an icon name ("car"), an emoji, or a short label
+ * ("Road Test"). Only image addresses load as images; everything else shows as text, as the old site showed it,
+ * so a label never turns into a broken image request.
+ */
+function GridIcon({ value }: { value: unknown }) {
+  const v = str(value);
+  if (!v) return null;
+  if (looksLikeImage(v)) {
+    const src = safeUrl(v, "image");
+    return src ? <img src={src} alt="" className="mb-4 h-12 w-12 object-contain" /> : null;
+  }
+  return <div aria-hidden="true" className="mb-3 text-3xl">{GRID_ICONS[v] ?? v}</div>;
+}
+
 function IconCards({ f, dark }: { f: Obj; dark: boolean }) {
   const items = list(f.items).map(obj).filter((x) => str(x.title) || str(x.icon));
   if (items.length === 0) return null;
@@ -503,10 +526,9 @@ function renderBlockContent(block: unknown, dark: boolean, data: RenderData): Re
           <div className={`grid gap-6 ${GRID_PHONE[str(f.mobileColumns) === "2" ? "2" : "1"]} ${GRID[String(f.columns)] ?? "md:grid-cols-2 lg:grid-cols-3"}`}>
             {list(f.items).map((item, i) => {
               const x = obj(item);
-              const icon = safeUrl(x.icon, "image");
               return (
                 <Panel key={i} dark={dark} className="flex flex-col">
-                  {icon && <img src={icon} alt="" className="mb-4 h-12 w-12 object-contain" />}
+                  <GridIcon value={x.icon} />
                   {str(x.title) && <h3 className={`text-lg font-semibold ${dark ? "text-white" : "text-slate-900"}`}>{str(x.title)}</h3>}
                   <RichHtml html={x.description} tone={dark ? "light" : "default"} className="mt-3" />
                 </Panel>
